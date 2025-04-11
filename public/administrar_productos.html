@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DigitalMall | Administrar productos</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css" integrity="sha512-Evv84Mr4kqVGRNSgIGL/F/aIDqQb7xQ2vcrdIwxfjThSH8CSR7PBEakCr51Ck+w+/U6swU2Im1vVX0SVk9ABhg==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+</head>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            background-color: #f4f7fc;
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        h1, h2 {
+            text-align: center;
+            color: #333;
+        }
+
+        .container {
+            width: 80%;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        #admin-productos-page {
+            padding: 20px;
+        }
+
+        /* Estilos para el formulario de agregar producto */
+        .form-container {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            margin-bottom: 30px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            font-size: 14px;
+            color: #555;
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 10px;
+            font-size: 16px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            box-sizing: border-box;
+        }
+
+        .form-group input:focus {
+            border-color: #3498db;
+            outline: none;
+        }
+
+        button {
+            padding: 12px 20px;
+            background-color: #3498db;
+            color: white;
+            font-size: 16px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+
+        button:hover {
+            background-color: #2980b9;
+        }
+
+        /* Estilos para la tabla de productos */
+        #productosTable {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        #productosTable th, #productosTable td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+
+        #productosTable th {
+            background-color: #3498db;
+            color: white;
+        }
+
+        #productosTable tbody tr:hover {
+            background-color: #f4f4f4;
+        }
+
+        /* Estilos para los botones de acción en la tabla */
+        .btn-action {
+            padding: 6px 12px;
+            font-size: 14px;
+            margin-right: 5px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        .btn-edit {
+            background-color: #f39c12;
+            color: white;
+        }
+
+        .btn-edit:hover {
+            background-color: #e67e22;
+        }
+
+        .btn-delete {
+            background-color: #e74c3c;
+            color: white;
+        }
+
+        .btn-delete:hover {
+            background-color: #c0392b;
+        }
+
+        /* Agregar un espaciado general */
+        .form-container, #productosTable {
+            margin-bottom: 30px;
+        }
+    </style>
+</head>
+<body id="admin-productos-page">
+
+    <div class="container">
+        <h1>Administrar productos <i class="fa-solid fa-screwdriver-wrench"></i></h1>
+
+        <!-- Formulario para agregar productos -->
+        <div class="form-container">
+            <h2>Agregar Producto</h2>
+            <div class="form-group">
+                <label for="nombre">Nombre:</label>
+                <input type="text" id="nombre" placeholder="Nombre del producto" required>
+            </div>
+            <div class="form-group">
+                <label for="precio">Precio:</label>
+                <input type="number" id="precio" placeholder="Precio del producto" required>
+            </div>
+            <button onclick="agregarProducto()">Agregar producto</button>
+        </div>
+
+        <!-- Tabla para mostrar productos -->
+        <h2>Lista de productos</h2>
+        <table id="productosTable">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Nombre</th>
+                    <th>Precio</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Productos listados aquí -->
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        // Obtener los productos de la base de datos
+        async function obtenerProductos() {
+            const response = await fetch('http://localhost:8080/data');
+            const productos = await response.json();
+            const tableBody = document.getElementById('productosTable').getElementsByTagName('tbody')[0];
+
+            tableBody.innerHTML = ''; // Limpiar la tabla antes de llenarla
+
+            productos.forEach(producto => {
+                const row = tableBody.insertRow();
+                row.innerHTML = `
+                    <td>${producto.id}</td>
+                    <td>${producto.nombre}</td>
+                    <td>${producto.precio}</td>
+                    <td>
+                        <button class="btn-action btn-edit" onclick="editarProducto(${producto.id}, '${producto.nombre}', ${producto.precio})">Editar</button>
+                        <button class="btn-action btn-delete" onclick="eliminarProducto(${producto.id})">Eliminar</button>
+                    </td>
+                `;
+            });
+        }
+
+        // Agregar un nuevo producto
+        async function agregarProducto() {
+            const nombre = document.getElementById('nombre').value;
+            const precio = parseFloat(document.getElementById('precio').value);
+
+            if (!nombre || isNaN(precio)) {
+                alert('Por favor ingresa un nombre y un precio válidos');
+                return;
+            }
+
+            const response = await fetch('http://localhost:8080/data', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ nombre, precio })
+            });
+
+            if (response.ok) {
+                alert('Producto agregado');
+                obtenerProductos(); // Actualizar la lista de productos
+            } else {
+                alert('Error al agregar el producto');
+            }
+        }
+
+        // Editar un producto
+        function editarProducto(id, nombre, precio) {
+            const nuevoNombre = prompt('Nuevo nombre:', nombre);
+            const nuevoPrecio = prompt('Nuevo precio:', precio);
+
+            if (nuevoNombre && nuevoPrecio && !isNaN(nuevoPrecio)) {
+                fetch('http://localhost:8080/data/update', {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        id,
+                        nombre: nuevoNombre,
+                        precio: parseFloat(nuevoPrecio)
+                    })
+                })
+                .then(response => response.json())
+                .then(() => obtenerProductos()) // Actualizar la lista
+                .catch(err => alert('Error al editar el producto'));
+            }
+        }
+
+        // Eliminar un producto
+        function eliminarProducto(id) {
+            if (confirm('¿Estás seguro de que quieres eliminar este producto?')) {
+                fetch('http://localhost:8080/data/delete', {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ id })
+                })
+                .then(() => obtenerProductos()) // Actualizar la lista
+                .catch(err => alert('Error al eliminar el producto'));
+            }
+        }
+
+        // Inicializar la página con los productos existentes
+        obtenerProductos();
+    </script>
+
+</body>
+</html>

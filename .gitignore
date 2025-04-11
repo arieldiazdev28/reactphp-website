@@ -1,0 +1,18 @@
+# Ignorar directorios de Composer
+/vendor/
+
+# Ignorar archivos de dependencias
+composer.lock
+
+# Ignorar archivos de caché y logs
+/storage/*
+/logs/*
+/cache/*
+
+Thumbs.db
+
+composer.phar
+
+# Ignorar archivos de test y cobertura
+/tests/
+coverage-*.xml
