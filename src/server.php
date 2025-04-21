@@ -7,27 +7,38 @@ use React\Http\Message\Response;
 use React\Socket\SocketServer;
 use Psr\Http\Message\ServerRequestInterface;
 use React\EventLoop\Loop;
+use React\MySQL\Factory as MySQLFactory;
+//use Clue\React\MySQL\Factory as MySQLFactory;
 
 $loop = Loop::get();
-$productosPath = __DIR__ . '/../data/productos.json'; // Ruta del archivo JSON
 
-$server = new HttpServer(function (ServerRequestInterface $request) use ($productosPath) {
+// Conexión a la base de datos
+$mysqlFactory = new MySQLFactory($loop);
+//$db = $mysqlFactory->createLazyConnection('user:password@localhost/tiendareactphp'); // Cambia user y password
+//$db = $mysqlFactory->createLazyConnection('root:@localhost/tiendareactphp');
+$db = $mysqlFactory->createLazyConnection('reactphp:@localhost/tiendareactphp');
+
+
+$db->query('SELECT 1')->then(function () {
+    echo "✅ Conexión a la base de datos exitosa\n";
+}, function (Exception $e) {
+    echo "❌ Error de conexión a la base de datos: " . $e->getMessage() . "\n";
+});
+
+$headers = [
+    'Access-Control-Allow-Origin' => '*',
+    'Access-Control-Allow-Methods' => 'GET, POST, PUT, DELETE',
+    'Access-Control-Allow-Headers' => 'Content-Type',
+];
+
+$server = new HttpServer(function (ServerRequestInterface $request) use ($db, $headers) {
     $path = $request->getUri()->getPath();
     $method = $request->getMethod();
 
-    // Agregar encabezados CORS
-    $headers = [
-        'Access-Control-Allow-Origin' => '*', // Permitir solicitudes de cualquier origen
-        'Access-Control-Allow-Methods' => 'GET, POST, PUT, DELETE', // Métodos permitidos
-        'Access-Control-Allow-Headers' => 'Content-Type', // Encabezados permitidos
-    ];
-
-    // Manejar la solicitud OPTIONS
     if ($method === 'OPTIONS') {
         return new Response(200, $headers);
     }
 
-    // Manejar otras rutas
     switch ($path) {
         case '/':
             return new Response(
@@ -41,132 +52,99 @@ $server = new HttpServer(function (ServerRequestInterface $request) use ($produc
                 ['Content-Type' => 'text/html'] + $headers,
                 file_get_contents(__DIR__ . '/../public/contact.html')
             );
+
         case '/administrarproductos':
             return new Response(
                 200,
                 ['Content-Type' => 'text/html'] + $headers,
                 file_get_contents(__DIR__ . '/../public/administrar_productos.html')
             );
+
         case '/style.css':
             return new Response(
                 200,
                 ['Content-Type' => 'text/css'] + $headers,
                 file_get_contents(__DIR__ . '/../public/style.css')
             );
+
         case '/data':
-            if ($method === 'GET') {
-                return handleRead($productosPath, $headers);
-            }
-            if ($method === 'POST') {
-                return handleCreate($request, $productosPath, $headers);
-            }
+            if ($method === 'GET')
+            {   return handleRead($db, $headers); }
+            if ($method === 'POST')
+            {   return handleCreate($request, $db, $headers); }
             break;
+
         case '/data/update':
-            if ($method === 'PUT') {
-                return handleUpdate($request, $productosPath, $headers);
-            }
+            if ($method === 'PUT')
+            {   return handleUpdate($request, $db, $headers); }
             break;
+
         case '/data/delete':
-            if ($method === 'DELETE') {
-                return handleDelete($request, $productosPath, $headers);
-            }
+            if ($method === 'DELETE')
+            {   return handleDelete($request, $db, $headers); }
             break;
+
         default:
-            return new Response(
-                404,
-                ['Content-Type' => 'text/plain'] + $headers,
-                '404 - Página no encontrada'
-            );
+            return new Response(404, ['Content-Type' => 'text/plain'] + $headers, '404 - Página no encontrada');
     }
 });
 
-function handleRead($path, $headers)
+// ======================= Funciones =======================
+
+function handleRead($db, $headers)
 {
-    if (!file_exists($path)) {
-        return new Response(500, $headers, 'Error cargando datos');
-    }
-
-    $data = file_get_contents($path);
-    return new Response(200, $headers, $data);
-}
-
-function handleCreate($request, $path, $headers)
-{
-    $data = json_decode($request->getBody()->getContents(), true);
-
-    if (json_last_error() !== JSON_ERROR_NONE) {
-        return new Response(400, $headers, 'Datos inválidos');
-    }
-
-    if (!isset($data['nombre'], $data['precio'])) {
-        return new Response(400, $headers, 'Nombre y precio son requeridos');
-    }
-
-    // Obtener productos existentes
-    $productos = json_decode(file_get_contents($path), true);
-    $newId = count($productos) > 0 ? max(array_column($productos, 'id')) + 1 : 1; // Asignar un nuevo ID
-    $data['id'] = $newId;
-    $productos[] = $data;
-
-    // Guardar de nuevo en el archivo
-    file_put_contents($path, json_encode($productos, JSON_PRETTY_PRINT));
-
-    return new Response(201, $headers, json_encode($data));
-}
-
-function handleUpdate($request, $path, $headers)
-{
-    $data = json_decode($request->getBody()->getContents(), true);
-
-    if (json_last_error() !== JSON_ERROR_NONE) {
-        return new Response(400, $headers, 'Datos inválidos');
-    }
-
-    if (!isset($data['id'], $data['nombre'], $data['precio'])) {
-        return new Response(400, $headers, 'ID, nombre y precio son requeridos');
-    }
-
-    // Obtener productos existentes
-    $productos = json_decode(file_get_contents($path), true);
-    foreach ($productos as &$producto) {
-        if ($producto['id'] == $data['id']) {
-            $producto['nombre'] = $data['nombre'];
-            $producto['precio'] = $data['precio'];
-            file_put_contents($path, json_encode($productos, JSON_PRETTY_PRINT));
-            return new Response(200, $headers, json_encode($producto));
-        }
-    }
-
-    return new Response(404, $headers, 'Producto no encontrado');
-}
-
-function handleDelete($request, $path, $headers)
-{
-    $data = json_decode($request->getBody()->getContents(), true);
-
-    if (json_last_error() !== JSON_ERROR_NONE) {
-        return new Response(400, $headers, 'Datos inválidos');
-    }
-
-    if (!isset($data['id'])) {
-        return new Response(400, $headers, 'ID es requerido');
-    }
-
-    // Obtener productos existentes
-    $productos = json_decode(file_get_contents($path), true);
-    $productos = array_filter($productos, function ($producto) use ($data) {
-        return $producto['id'] != $data['id'];
+    return $db->query('SELECT * FROM productos')->then(function ($result) use ($headers) {
+        return new Response(200, $headers, json_encode($result->resultRows));
     });
-    $productos = array_values($productos); // Reindexar el array
-
-    // Guardar de nuevo en el archivo
-    file_put_contents($path, json_encode($productos, JSON_PRETTY_PRINT));
-
-    return new Response(200, $headers, 'Producto eliminado');
 }
 
+function handleCreate($request, $db, $headers)
+{
+    $data = json_decode($request->getBody()->getContents(), true);
+    if (!isset($data['nombre'], $data['precio'])) {
+        return new Response(400, $headers, 'Nombre y precio requeridos');
+    }
+
+    $nombre = $data['nombre'];
+    $precio = $data['precio'];
+
+    return $db->query('INSERT INTO productos (nombre, precio) VALUES (?, ?)', [$nombre, $precio])
+        ->then(function () use ($headers, $nombre, $precio) {
+            return new Response(201, $headers, json_encode(['nombre' => $nombre, 'precio' => $precio]));
+        });
+}
+
+function handleUpdate($request, $db, $headers)
+{
+    $data = json_decode($request->getBody()->getContents(), true);
+    if (!isset($data['id'], $data['nombre'], $data['precio'])) {
+        return new Response(400, $headers, 'ID, nombre y precio requeridos');
+    }
+
+    return $db->query(
+        'UPDATE productos SET nombre = ?, precio = ? WHERE id = ?',
+        [$data['nombre'], $data['precio'], $data['id']]
+    )->then(function () use ($headers, $data) {
+        return new Response(200, $headers, json_encode($data));
+    });
+}
+
+function handleDelete($request, $db, $headers)
+{
+    $data = json_decode($request->getBody()->getContents(), true);
+    if (!isset($data['id'])) {
+        return new Response(400, $headers, 'ID requerido');
+    }
+
+    return $db->query('DELETE FROM productos WHERE id = ?', [$data['id']])
+        ->then(function () use ($headers) {
+            return new Response(200, $headers, 'Producto eliminado');
+        });
+}
+
+// ======================= Iniciar servidor =======================
 
 $socket = new SocketServer("0.0.0.0:8080", [], $loop);
 $server->listen($socket);
 
-echo "Servidor corriendo en http://0.0.0.0:8080\n";
+echo "✅ Servidor corriendo en http://localhost:8080\n";

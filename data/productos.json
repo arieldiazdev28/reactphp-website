@@ -18,5 +18,10 @@
         "nombre": "Shorts",
         "precio": 20,
         "id": 6
+    },
+    {
+        "nombre": "Laptop",
+        "precio": 13.5,
+        "id": 7
     }
 ]
